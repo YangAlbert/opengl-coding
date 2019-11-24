@@ -1,2 +1,2 @@
-# opengl-py
-opengl coding in python
+# opengl-coding
+opengl coding in c++/python
