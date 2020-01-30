@@ -1,5 +1,6 @@
-from glumpy import app, gl, gloo, data
-from glumpy.transforms import PanZoom, Translate
+from glumpy import app, gl, gloo, data, glm
+import numpy as np
+# from glumpy.transforms import PanZoom, Translate
 import cv2
 import os
 
@@ -12,17 +13,25 @@ vertex_shader = """
     attribute vec2 position;
     attribute vec3 color;
     attribute vec2 texcoord;
+
     varying vec4 v_color;
     varying vec2 v_texcoord;
-    uniform float t;
-    uniform vec2 aspect;
-    uniform vec2 translate;
-    uniform float scale;
+
+    uniform mat4 u_model;
+    uniform mat4 u_view;
+    uniform mat4 u_projection;
+
+    // uniform float t;
+    // uniform vec2 aspect;
+    // uniform vec2 translate;
+    // uniform float scale;
     void main() {
         // float theta = t * 10.0 / 3.14159;
         // vec2 cossin = vec2(cos(theta), sin(theta));
         // vec2 rot_pos = vec2(cossin.x * position.x - cossin.y * position.y, cossin.y * position.x + cossin.x * position.y);
-        gl_Position = <transform(vec4(position * aspect * scale + translate, 0, 1))>;
+        // gl_Position = <transform(vec4(position * aspect * scale + translate, 0, 1))>;
+
+        gl_Position = u_projection * u_view * u_model * vec4(position, 0, 1);
         v_color = vec4(color, 1);
         v_texcoord = texcoord;
     }
@@ -34,7 +43,6 @@ fragment_shader = """
     uniform sampler2D tex;
     uniform float alpha;
     void main() {
-        // gl_FragColor = v_color * texture2D(tex, v_texcoord);
         gl_FragColor = texture2D(tex, v_texcoord);
         gl_FragColor.a = alpha;
     }
@@ -45,11 +53,18 @@ program["position"] = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
 program["color"] = [(0, 0, 0), (0.5, 0, 0), (0.5, 0.5, 0), (0.5, 0.5, 0.5)]
 program["texcoord"] = [(0, 1), (0, 0), (1, 1), (1, 0)]
 
-transform = PanZoom(aspect=(wnd_w / wnd_w))
-program['transform'] = transform
-window.attach(program["transform"])
+program['u_model'] = np.eye(4, dtype=np.float32)
 
-print(program.all_attributes)
+view = np.eye(4, dtype=np.float32)
+view = glm.translate(view, 0, 0, -3)
+program['u_view'] = view
+program['u_projection'] = np.eye(4, dtype=np.float32)
+
+# transform = PanZoom(aspect=(wnd_w / wnd_w))
+# program['transform'] = transform
+# window.attach(program["transform"])
+
+# print(program.all_attributes)
 
 # cv face detection.
 face_cascade = cv2.CascadeClassifier(r'./haarcascade_frontalface_default.xml')
@@ -97,7 +112,6 @@ def load_image(image_file_path):
     last_img = curr_img
 
     curr_img = data.load(image_file_path)
-    # program['tex'] = curr_img
     asp = curr_img.shape[1] / curr_img.shape[0]
  
     last_asp = curr_asp
@@ -137,42 +151,59 @@ if len(imge_list) > 0:
     load_image(imge_list[current_img_idx])
     current_img_idx += 1
 
+    program['tex'] = curr_img
+
+@window.event
+def on_resize(width, height):
+    # half_w, half_h = width * 0.5, height * 0.5
+    hw = width / float(height)
+    hh = 1.0
+
+    if hw < 1.0:
+        hh = 1.0 / hw
+        hw = 1.0
+
+    program['u_projection'] = glm.ortho(-hw, hw, -hh, hh, -100, 100)
+    # program['u_projection'] = glm.perspective(45.0, ratiow_half * 2.0, 1.0, 100.0)
+
 @window.event
 def on_draw(dt):
     global t, current_img_idx, imge_list
 
     window.clear()
-    gl.glClearColor(0.0, 0.0, 0.0, 1.0)
-    gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+    # gl.glClearColor(0.0, 1.0, 0.0, 1.0)
+    # gl.glClear(gl.GL_COLOR_BUFFER_BIT)
     
-    t += dt
-    if t > duration and current_img_idx < len(imge_list):
-        load_image(imge_list[current_img_idx])
-        current_img_idx += 1
+    # t += dt
+    # if t > duration and current_img_idx < len(imge_list):
+    #     load_image(imge_list[current_img_idx])
+    #     current_img_idx += 1
 
     gl.glDisable(gl.GL_BLEND)
+    gl.glDisable(gl.GL_DEPTH_TEST);
 
     # draw current.
-    program['tex'] = curr_img
-    program['aspect'] = curr_asp
-    program['translate'] = (0, 0)
-    program['scale'] = 1
-    program['alpha'] = 1
+    # program['tex'] = curr_img.view(gloo.Texture2D)
+    # program['aspect'] = curr_asp
+    # program['translate'] = (0, 0)
+    # program['scale'] = 1
+    # program['alpha'] = 1
 
     program.draw(gl.GL_TRIANGLE_STRIP)
+    print('draw simple photo')
 
-    f = min(t, duration) / duration
+    # f = min(t, duration) / duration
 
-    if last_img != None:
-        gl.glEnable(gl.GL_BLEND)
+    # if last_img != None:
+    #     gl.glEnable(gl.GL_BLEND)
 
-        program['tex'] = last_img
-        program['aspect'] = last_asp
+    #     program['tex'] = last_img
+    #     program['aspect'] = last_asp
 
-        program['translate'] = (tar_pos[0] * f, tar_pos[1] * f)
-        program['scale'] = 1 + (tar_scale - 1) * f
-        program['alpha'] = max(f, 0.2)
+    #     program['translate'] = (tar_pos[0] * f, tar_pos[1] * f)
+    #     program['scale'] = 1 + (tar_scale - 1) * f
+    #     program['alpha'] = max(f, 0.2)
 
-        program.draw(gl.GL_TRIANGLE_STRIP)
+    #     program.draw(gl.GL_TRIANGLE_STRIP)
 
 app.run()
