@@ -20,6 +20,7 @@ varying vec2 v_texcoord;
 void main()
 {
     gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
+    // gl_Position = vec4(a_position, 1.0);
     // depth = gl_Position.z / gl_Position.w;
     color = a_color.rgb;
     v_texcoord = a_texcoord;
@@ -231,9 +232,11 @@ def on_resize(width, height):
     ratio = width / float(height)
     cube['u_projection'] = glm.perspective(45, ratio, 2, 100)
 
+frame_index = 0
+
 @window.event
 def on_draw(dt):
-    global phi, theta
+    global phi, theta, frame_index
     window.clear()
 
     cube['u_outline'] = 0.0;
@@ -251,10 +254,21 @@ def on_draw(dt):
     cube['u_model'] = model
     cube['u_model_it'] = np.matrix(model).I.T
 
+    frame_index += 1
+    print('current frame: ' + str(frame_index))
+    if frame_index == 100:
+        print('changing checkboard dimension to 16')
+        cube['u_texture'] = checkerboard(16).view(gloo.Texture2D)
+    elif frame_index == 200:
+        print('changing back checkboard dimension to 8')
+        cube['u_texture'] = checkerboard().view(gloo.Texture2D)
+
 
 @window.event
 def on_init():
     gl.glEnable(gl.GL_DEPTH_TEST)
     gl.glLineWidth(4.0)
+    gl.glDisable(gl.GL_CULL_FACE)
+    # gl.glCullFace(gl.GL_FRONT_AND_BACK)
 
 app.run()
